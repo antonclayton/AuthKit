@@ -1,5 +1,5 @@
 import express from 'express'
-import { registerUser, loginUser, logoutUser, getUser, updateUser, getAllUsers} from '../controllers/auth/userController.js'
+import { registerUser, loginUser, logoutUser, getUser, updateUser, getAllUsers, userLoginStatus} from '../controllers/auth/userController.js'
 import { protect, adminMiddleware, creatorMiddleware} from '../middleware/authMiddleware.js'
 import { deleteUser } from '../controllers/auth/adminController.js'
 
@@ -20,5 +20,9 @@ router.delete("/admin/users/:id", protect, adminMiddleware, deleteUser)
 
 // get all users
 router.get("/admin/users", protect, creatorMiddleware, getAllUsers)
+
+
+// login status
+router.get("/login-status", userLoginStatus);
 
 export default router

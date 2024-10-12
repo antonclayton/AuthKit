@@ -3,6 +3,7 @@ import { StatusCodes } from 'http-status-codes'
 import User from '../../models/auth/UserModel.js'
 import generateToken from '../../helpers/generateToken.js'
 import bcrypt from 'bcrypt'
+import jwt from 'jsonwebtoken'
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////***********************************************************************************************************************//////////////////
@@ -207,6 +208,27 @@ export const getAllUsers = asyncHandler(async (req, res) => {
 
         res.status(StatusCodes.OK).json(users)
     } catch (error) {
-        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ message: "Cannot get users"})
+        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ message: "Cannot get users" })
     }
+})
+
+
+export const userLoginStatus = asyncHandler(async (req, res) => {
+    const token = req.cookies.token;
+
+    if (!token) {
+        res.status(StatusCodes.UNAUTHORIZED).json({ message: "Not authorized, please login..." })
+    }
+
+    // verify the token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    if (decoded) {
+        res.status(StatusCodes.OK).json(true)
+    }
+    else {
+        res.status(StatusCodes.UNAUTHORIZED).json(false)
+    }
+
+
 })
