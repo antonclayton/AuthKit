@@ -5,8 +5,8 @@ import generateToken from "../../helpers/generateToken.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import Token from "../../models/auth/Token.js";
-import crypto from 'node:crypto'
-import hashToken from '../../helpers/hashToken.js'
+import crypto from "node:crypto";
+import hashToken from "../../helpers/hashToken.js";
 import sendEmail from "../../helpers/sendEmail.js";
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -278,7 +278,7 @@ export const verifyEmail = asyncHandler(async (req, res) => {
   }
 
   // create a verification token using the user id ---> crypto
-  const verificationToken = crypto.randomBytes(64).toString("hex") + user._id
+  const verificationToken = crypto.randomBytes(64).toString("hex") + user._id;
 
   // hash the verification token
   const hashedToken = await hashToken(verificationToken);
@@ -287,14 +287,14 @@ export const verifyEmail = asyncHandler(async (req, res) => {
     userId: user._id,
     verificationToken: hashedToken,
     createdAt: Date.now(),
-    expiresAt: Date.now() + 24 * 60 * 60 * 1000
+    expiresAt: Date.now() + 24 * 60 * 60 * 1000,
   }).save();
 
   // verification link
   const verificationLink = `${process.env.CLIENT_URL}/verify-email/${verificationToken}`;
 
   // send email to the user (node mailer)
-  const subject = "Email Verification - AuthKit"
+  const subject = "Email Verification - AuthKit";
   const send_to = user.email;
   const reply_to = "noreply@gmail.com";
   const template = "emailVerification";
@@ -303,57 +303,130 @@ export const verifyEmail = asyncHandler(async (req, res) => {
   const link = verificationLink;
 
   try {
-    //order matters --> subject, send_to, send_from, reply_to,template, 
-    await sendEmail(subject, send_to, send_from, reply_to, template, name, link)
-    return res.status(StatusCodes.OK).json({ message: "Email sent"})
-  } 
-  catch (error) {
-    console.log("Error sending email: ", error)
-    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ message: "Email could not be sent"})
+    //order matters --> subject, send_to, send_from, reply_to,template,
+    await sendEmail(
+      subject,
+      send_to,
+      send_from,
+      reply_to,
+      template,
+      name,
+      link
+    );
+    return res.status(StatusCodes.OK).json({ message: "Email sent" });
+  } catch (error) {
+    console.log("Error sending email: ", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ message: "Email could not be sent" });
   }
 });
-
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////***********************************************************************************************************************//////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-
 // verify user
 export const verifyUser = asyncHandler(async (req, res) => {
   const { verificationToken } = req.params;
-  
+
   if (!verificationToken) {
-    return res.status(StatusCodes.BAD_REQUEST).json({ message: "Invalid Verification Token"})
+    return res
+      .status(StatusCodes.BAD_REQUEST)
+      .json({ message: "Invalid Verification Token" });
   }
 
   // hash the verification token --> because it was hashed before saving
   const hashedToken = hashToken(verificationToken);
 
   //find user with the verification token
-  const userToken = await Token.findOne({verificationToken: hashedToken, 
+  const userToken = await Token.findOne({
+    verificationToken: hashedToken,
     // check if the token is expired
-    expiresAt: {$gt: Date.now()},
-
+    expiresAt: { $gt: Date.now() },
   });
 
   // console.log(userToken);
 
   //invalid or expired
   if (!userToken) {
-    return res.status(StatusCodes.BAD_REQUEST).json({ message: "Invalid or Expired Token"});
+    return res
+      .status(StatusCodes.BAD_REQUEST)
+      .json({ message: "Invalid or Expired Token" });
   }
 
   //find user with the userId of the token
   const user = await User.findById(userToken.userId);
 
   if (user.isVerified) {
-    return res.status(StatusCodes.BAD_REQUEST).json({ message: "User is already verified"})
+    return res
+      .status(StatusCodes.BAD_REQUEST)
+      .json({ message: "User is already verified" });
   }
 
   // update user to verified
   user.isVerified = true;
   await user.save();
-  res.status(StatusCodes.OK).json({ message: "User is verified"})
+  res.status(StatusCodes.OK).json({ message: "User is verified" });
+});
 
-})
+export const forgotPassword = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) { 
+    return res.status(StatusCodes.BAD_REQUEST).json({ message: "Email is required" })
+  }
+
+  // check if user exists
+  const user = await User.findOne({ email })
+
+  if (!user) {
+    // 404 not found
+    return res.status(StatusCodes.NOT_FOUND)
+  }
+
+  // see if reset token exists
+  let token = await Token.findOne({ userId: user._id });
+
+  // if token exists --> delete the token
+  if (token) {
+    await Token.deleteOne();
+  }
+
+  // create a reset token using the user id --> expires in 1 hours
+  const passwordResetToken = crypto.randomBytes(64).toString("hex") + user._id;
+
+  const hashedToken = hashToken(passwordResetToken);
+
+  await new Token({
+    userId: user._id,
+    resetToken: hashedToken,
+    createdAt: Date.now(),
+    expiresAt: Date.now() + 60 * 60 * 1000,
+  }).save();
+
+  // reset link
+  const resetLink = `${process.env.CLIENT_URL}/reset-password/${passwordResetToken}`;
+
+  // send email to user
+  const subject = "Password Reset - Authkit"
+  const send_to = user.email;
+  const send_from = process.env.USER_EMAIL;
+  const reply_to = "noreply@noreply.com"
+  const template = "forgotPassword";
+  const name = user.name;
+  const link = resetLink;
+
+  console.log(subject, send_to, send_from, reply_to, template, name, link);
+
+  try {
+    await sendEmail(subject, send_to, send_from, reply_to, template, name, link);
+    res.json({ message: "Email sent"})
+
+  } catch (error) {
+    console.log("Error sending email: ", error)
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ message: "Email could not be sent"})
+  }
+
+
+});
