@@ -373,16 +373,18 @@ export const verifyUser = asyncHandler(async (req, res) => {
 export const forgotPassword = asyncHandler(async (req, res) => {
   const { email } = req.body;
 
-  if (!email) { 
-    return res.status(StatusCodes.BAD_REQUEST).json({ message: "Email is required" })
+  if (!email) {
+    return res
+      .status(StatusCodes.BAD_REQUEST)
+      .json({ message: "Email is required" });
   }
 
   // check if user exists
-  const user = await User.findOne({ email })
+  const user = await User.findOne({ email });
 
   if (!user) {
     // 404 not found
-    return res.status(StatusCodes.NOT_FOUND)
+    return res.status(StatusCodes.NOT_FOUND);
   }
 
   // see if reset token exists
@@ -400,7 +402,7 @@ export const forgotPassword = asyncHandler(async (req, res) => {
 
   await new Token({
     userId: user._id,
-    resetToken: hashedToken,
+    passwordResetToken: hashedToken,
     createdAt: Date.now(),
     expiresAt: Date.now() + 60 * 60 * 1000,
   }).save();
@@ -408,11 +410,14 @@ export const forgotPassword = asyncHandler(async (req, res) => {
   // reset link
   const resetLink = `${process.env.CLIENT_URL}/reset-password/${passwordResetToken}`;
 
+  console.log("Original Token:", passwordResetToken);
+  console.log("Hashed Token (Saving):", hashedToken);
+
   // send email to user
-  const subject = "Password Reset - Authkit"
+  const subject = "Password Reset - Authkit";
   const send_to = user.email;
   const send_from = process.env.USER_EMAIL;
-  const reply_to = "noreply@noreply.com"
+  const reply_to = "noreply@noreply.com";
   const template = "forgotPassword";
   const name = user.name;
   const link = resetLink;
@@ -420,13 +425,62 @@ export const forgotPassword = asyncHandler(async (req, res) => {
   console.log(subject, send_to, send_from, reply_to, template, name, link);
 
   try {
-    await sendEmail(subject, send_to, send_from, reply_to, template, name, link);
-    res.json({ message: "Email sent"})
-
+    await sendEmail(
+      subject,
+      send_to,
+      send_from,
+      reply_to,
+      template,
+      name,
+      link
+    );
+    res.json({ message: "Email sent" });
   } catch (error) {
-    console.log("Error sending email: ", error)
-    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ message: "Email could not be sent"})
+    console.log("Error sending email: ", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ message: "Email could not be sent" });
+  }
+});
+
+export const resetPassword = asyncHandler(async (req, res) => {
+  const { passwordResetToken } = req.params;
+  const { password } = req.body;
+
+  // if token doesnt exist
+  if (!passwordResetToken) {
+    return res
+      .status(StatusCodes.BAD_REQUEST)
+      .json({ message: "Invalid Reset Token" });
   }
 
+  // if password not provided
+  if (!password) {
+    return res
+      .status(StatusCodes.BAD_REQUEST)
+      .json({ message: "Password is required" });
+  }
+
+  // hash reset token
+  const hashedToken = hashToken(passwordResetToken);
+
+  // check if token exists and still valid
+  const userToken = await Token.findOne({
+    passwordResetToken: hashedToken,
+    expiresAt: { $gt: Date.now() },
+  })
+
+  if (!userToken) {
+    return res.status(StatusCodes.BAD_REQUEST).json({ message: "Invalid or expired reset token"})
+  }
+
+  // find user with the user id in the token
+  const user = await User.findById(userToken.userId)
+
+  // update user password (password comes hashed already because of the pre method in UserSchema)
+  user.password = password;
+  await user.save();
+
+  res.status(StatusCodes.OK).json({ message: "Password Reset Successfully" });
 
 });
