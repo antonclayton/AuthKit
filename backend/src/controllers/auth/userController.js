@@ -484,3 +484,39 @@ export const resetPassword = asyncHandler(async (req, res) => {
   res.status(StatusCodes.OK).json({ message: "Password Reset Successfully" });
 
 });
+
+
+
+
+
+
+export const changePassword = asyncHandler( async(req, res) => {
+  const { currentPassword, newPassword } = req.body;
+
+  if (!currentPassword || !newPassword) {
+    return res.status(StatusCodes.BAD_REQUEST).json({ message: "All fields are required"})
+  }
+
+  // find user by ID
+  const user = await User.findById(req.user._id)
+
+  // if (!user) {
+  //   return res.status(StatusCodes.BAD_REQUEST).json({ message: ""})
+  // }
+
+  // compare current password with the hashed password in the database
+  const isMatch = await bcrypt.compare(currentPassword, user.password)
+
+  if (!isMatch) {
+    return res.status(StatusCodes.BAD_REQUEST).json({ message: "Invalid Password"})
+  }
+
+  // reset password
+  if (isMatch) {
+    user.password = newPassword;  // automatically hashed by pre method in UserSchema
+    await user.save();
+    return res.status(StatusCodes.OK).json({ message: "Password changed successfully"})
+  } else {
+    return res.status(StatusCodes.BAD_REQUEST).json({ message: "Password could not be changed"})
+  }
+})
