@@ -4,6 +4,7 @@ import cors from 'cors'
 import connect from './src/db/connect.js'
 import cookieParser from 'cookie-parser'
 import fs from 'node:fs'
+import errorHandler from './src/helpers/errorHandler.js'
 
 dotenv.config()
 
@@ -17,10 +18,13 @@ app.use(cors({
     origin: process.env.CLIENT_URL,
     credentials: true
 }));                                                        // allows server to specify who can access its resources from a different origin or domain
+
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))             // parses incoming requests with URL-encoded payloads. used when submitting form data with POST method (helps extract form data and makes it available through req.body)
 app.use(cookieParser())
 
+// error handler middleware
+app.use(errorHandler);
 
 //routes
 const routeFiles = fs.readdirSync('./src/routes')           // automatically includes all routes and reduces boilerplate code in server setup
